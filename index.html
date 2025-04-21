@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Quiz App</title>
+</head>
+<body class="bg-gray-100">
+  <div id="app" class="max-w-2xl mx-auto p-4"></div>
+
+  <script>
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxGybxHi5nFZnLxQ9CwAr3CrdvpC1Oo_Exezrz0cB7RcOngHibGTkmgAnbb98mCTyYrnA/exec';
+
+  async function listQuizzes() {
+    const res = await fetch(API_URL);
+    const { quizzes } = await res.json();
+    const c = document.getElementById('app');
+    c.innerHTML = '<h1 class="text-2xl font-bold mb-4">Choose a Quiz</h1>';
+    quizzes.forEach(q => {
+      const a = document.createElement('a');
+      a.href = '?quiz=' + encodeURIComponent(q.slug);
+      a.textContent = q.title;
+      a.className = 'block bg-white p-4 rounded shadow mb-2 hover:bg-gray-50';
+      c.appendChild(a);
+    });
+  }
+
+  async function loadQuiz(slug) {
+    const res = await fetch(API_URL + '?quizSlug=' + slug);
+    const { questions } = await res.json();
+    const c = document.getElementById('app');
+    c.innerHTML = `<h1 class="text-2xl font-bold mb-4">${slug}</h1>`;
+    const form = document.createElement('form');
+    form.id = 'quizForm';
+
+    // Name Input
+    form.innerHTML += `
+      <div class="mb-4">
+        <label class="block mb-1">Your Name</label>
+        <input name="name" required class="border p-2 w-full">
+      </div>`;
+
+    // Questions
+    questions.forEach((q, i) => {
+      const opts = q.options.map(o =>
+        `<label class="block">
+           <input type="radio" name="${q.id}" value="${o}" required class="mr-2">
+           ${o}
+         </label>`).join('');
+      form.innerHTML += `
+        <div class="bg-white p-4 rounded shadow mb-4">
+          <p class="font-semibold mb-2">${i+1}. ${q.text}</p>
+          ${opts}
+        </div>`;
+    });
+
+    form.innerHTML += `
+      <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">
+        Submit
+      </button>`;
+
+    c.appendChild(form);
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const data = new FormData(form);
+      const name = data.get('name');
+      const answers = {};
+      questions.forEach(q => {
+        answers[q.id] = data.get(q.id);
+      });
+      // send as URL‑encoded form
+      const payload = new URLSearchParams();
+      payload.append('name', name);
+      payload.append('quizSlug', slug);
+      payload.append('answers', JSON.stringify(answers));
+
+      const post = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload.toString()
+      });
+
+      if (post.ok) {
+        c.innerHTML = `<p class="text-green-600 font-semibold">
+          Thanks for your submission, ${name}!
+        </p>`;
+      } else {
+        c.innerHTML = `<p class="text-red-600">Error—please try again.</p>`;
+      }
+    });
+  }
+
+  // ■ bootstrap
+  const ps = new URLSearchParams(window.location.search);
+  const slug = ps.get('quiz');
+  if (slug) loadQuiz(slug);
+  else       listQuizzes();
+  </script>
+</body>
+</html>
